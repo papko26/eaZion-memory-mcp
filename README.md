@@ -11,7 +11,7 @@ Replaces the file-based memory system (`~/.claude/projects/.../memory/`) with a 
 
 ```
 ~/.claude/mcp/              ← shared directory for all custom MCP servers
-└── psql-memory/
+└── eazion-memory-mcp/
     ├── server.py            # FastMCP server, 9 tools
     ├── requirements.txt     # mcp, psycopg2-binary
     ├── .venv/               # Python 3.12 (uv)
@@ -23,8 +23,30 @@ Replaces the file-based memory system (`~/.claude/projects/.../memory/`) with a 
 
 ## Database
 
-The server connects to a PostgreSQL instance via the `DATABASE_URL_222` environment variable.  
-Setting up that PostgreSQL instance is **outside the scope of this MCP** — see [Quick PostgreSQL setup](#quick-postgresql-setup) below if you need one.
+The server requires a reachable PostgreSQL instance. Setting it up is **outside the scope of this MCP** — see [Quick PostgreSQL setup](#quick-postgresql-setup) if you need one.
+
+### Connection & fallback
+
+The server reads two environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `EAZION_DATABASE_URL` | Primary connection — direct network access to the PostgreSQL host |
+| `EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL` | Fallback — for when the database is behind a firewall and you tunnel via SSH (`localhost`) |
+
+**Fallback logic:** on every connection attempt the server tries `EAZION_DATABASE_URL` first. If it gets an `OperationalError` (host unreachable, refused, etc.) **and** `EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL` is set, it transparently retries through the tunnel. At least one variable must be set or the server fails to start.
+
+#### Setting up an SSH tunnel (when needed)
+
+```bash
+# Forward remote port 5432 → localhost:5432
+ssh -N -L 5432:localhost:5432 user@remote-host
+```
+
+Then set:
+```
+EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL=postgresql://postgres:password@localhost:5432/claude_memory
+```
 
 ### Table schema
 
@@ -52,8 +74,8 @@ A trigger keeps `updated_at` current on every update.
 ## Naming convention
 
 ```
-GLOBAL/{name}                 — global memories (written via psql_memory_save)
-{machine}/{dialog}/{name}     — session insights (written via psql_memory_save_session_insights)
+GLOBAL/{name}                 — global memories (written via eazion_memory_save)
+{machine}/{dialog}/{name}     — session insights (written via eazion_memory_save_session_insights)
 ```
 
 Examples:
@@ -72,20 +94,20 @@ thinkpad/psql/uv-python-install
 
 | Tool | Description |
 |---|---|
-| `psql_memory_save(name, type, description, body, tags?)` | Upsert as `GLOBAL/{name}` |
-| `psql_memory_get(name)` | Fetch by exact full name |
-| `psql_memory_delete(name)` | Delete by exact full name |
-| `psql_memory_search(query, tags?)` | ILIKE search across name + description + body; optional tag filter |
-| `psql_memory_list(type?, namespace?, tags?)` | Index listing; filter by type, namespace prefix, and/or tags |
-| `psql_memory_load_by_tag(tags)` | Full content of all records matching any of the given tags |
+| `eazion_memory_save(name, type, description, body, tags?)` | Upsert as `GLOBAL/{name}` |
+| `eazion_memory_get(name)` | Fetch by exact full name |
+| `eazion_memory_delete(name)` | Delete by exact full name |
+| `eazion_memory_search(query, tags?)` | ILIKE search across name + description + body; optional tag filter |
+| `eazion_memory_list(type?, namespace?, tags?)` | Index listing; filter by type, namespace prefix, and/or tags |
+| `eazion_memory_load_by_tag(tags)` | Full content of all records matching any of the given tags |
 
 ### Session insights
 
 | Tool | Description |
 |---|---|
-| `psql_memory_save_session_insights(dialog, insights)` | Batch-save insights as `{hostname}/{dialog}/{name}` |
-| `psql_memory_list_session_insights(dialog?, machine?, tags?)` | Index listing of session insights; all params optional |
-| `psql_memory_load_session_insights(dialog, machine?, tags?)` | Full content of insights for a given dialog |
+| `eazion_memory_save_session_insights(dialog, insights)` | Batch-save insights as `{hostname}/{dialog}/{name}` |
+| `eazion_memory_list_session_insights(dialog?, machine?, tags?)` | Index listing of session insights; all params optional |
+| `eazion_memory_load_session_insights(dialog, machine?, tags?)` | Full content of insights for a given dialog |
 
 ### Tag behaviour
 
@@ -130,12 +152,13 @@ The system `pip list --format json` also crashes due to a non-standard `python-a
 ## Registration in Claude Code
 
 ```bash
-claude mcp add psql-memory \
+claude mcp add eazion-memory-mcp \
   -s user \
-  -e "DATABASE_URL_222=postgresql://user:password@host:5432/claude_memory" \
+  -e "EAZION_DATABASE_URL=postgresql://user:password@host:5432/claude_memory" \
+  -e "EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL=postgresql://user:password@localhost:5432/claude_memory" \
   -- \
-  ~/.claude/mcp/psql-memory/.venv/bin/python \
-  ~/.claude/mcp/psql-memory/server.py
+  ~/.claude/mcp/eazion-memory-mcp/.venv/bin/python \
+  ~/.claude/mcp/eazion-memory-mcp/server.py
 ```
 
 - `-s user` — available globally across all sessions
@@ -161,7 +184,7 @@ export PATH="$PATH:$HOME/.local/bin"
 ### 2. Create the venv
 
 ```bash
-cd ~/.claude/mcp/psql-memory
+cd ~/.claude/mcp/eazion-memory-mcp
 uv python install 3.12
 uv venv .venv --python 3.12
 uv pip install --python .venv mcp psycopg2-binary
@@ -206,17 +229,18 @@ CREATE TRIGGER memories_updated_at
 ### 4. Register the server
 
 ```bash
-claude mcp add psql-memory \
+claude mcp add eazion-memory-mcp \
   -s user \
-  -e "DATABASE_URL_222=postgresql://user:password@host:5432/claude_memory" \
-  -- ~/.claude/mcp/psql-memory/.venv/bin/python ~/.claude/mcp/psql-memory/server.py
+  -e "EAZION_DATABASE_URL=postgresql://user:password@host:5432/claude_memory" \
+  -e "EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL=postgresql://user:password@localhost:5432/claude_memory" \
+  -- ~/.claude/mcp/eazion-memory-mcp/.venv/bin/python ~/.claude/mcp/eazion-memory-mcp/server.py
 ```
 
 ---
 
 ## Quick PostgreSQL setup
 
-> This MCP only requires a reachable PostgreSQL instance and a `DATABASE_URL_222`.  
+> This MCP only requires a reachable PostgreSQL instance and `EAZION_DATABASE_URL`.  
 > If you don't have one, here is the fastest way to spin one up with Docker.
 
 ```bash
@@ -239,7 +263,15 @@ until docker exec postgres pg_isready -U postgres; do sleep 1; done
 
 Then set:
 ```
-DATABASE_URL_222=postgresql://postgres:yourpassword@localhost:5432/claude_memory
+EAZION_DATABASE_URL=postgresql://postgres:yourpassword@<host>:5432/claude_memory
+```
+
+If the host is only reachable via SSH tunnel:
+```bash
+ssh -N -L 5432:localhost:5432 user@remote-host
+```
+```
+EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL=postgresql://postgres:yourpassword@localhost:5432/claude_memory
 ```
 
 ---
@@ -247,14 +279,19 @@ DATABASE_URL_222=postgresql://postgres:yourpassword@localhost:5432/claude_memory
 ## Debugging
 
 ```bash
-# Test DB connectivity
-DATABASE_URL_222="postgresql://..." \
-  ~/.claude/mcp/psql-memory/.venv/bin/python -c \
-  "import psycopg2, os; psycopg2.connect(os.environ['DATABASE_URL_222']); print('OK')"
+# Test primary connection
+EAZION_DATABASE_URL="postgresql://..." \
+  ~/.claude/mcp/eazion-memory-mcp/.venv/bin/python -c \
+  "import psycopg2, os; psycopg2.connect(os.environ['EAZION_DATABASE_URL']); print('OK')"
+
+# Test tunnel fallback
+EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL="postgresql://..." \
+  ~/.claude/mcp/eazion-memory-mcp/.venv/bin/python -c \
+  "import psycopg2, os; psycopg2.connect(os.environ['EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL']); print('OK')"
 
 # List registered tools
-DATABASE_URL_222="..." \
-  ~/.claude/mcp/psql-memory/.venv/bin/python -c "
+EAZION_DATABASE_URL="..." \
+  ~/.claude/mcp/eazion-memory-mcp/.venv/bin/python -c "
 import sys; sys.path.insert(0, '.')
 import server
 print([t.name for t in server.mcp._tool_manager.list_tools()])
@@ -262,11 +299,11 @@ print([t.name for t in server.mcp._tool_manager.list_tools()])
 
 # Interactive testing via MCP Inspector
 npx @modelcontextprotocol/inspector \
-  ~/.claude/mcp/psql-memory/.venv/bin/python \
-  ~/.claude/mcp/psql-memory/server.py
+  ~/.claude/mcp/eazion-memory-mcp/.venv/bin/python \
+  ~/.claude/mcp/eazion-memory-mcp/server.py
 ```
 
 ### Known gotchas
 
 - Literal `%` inside f-string SQL fragments must be escaped as `%%` — psycopg2 treats bare `%` as a placeholder and raises `IndexError: list index out of range`
-- `DATABASE_URL_222` is passed via `env` in `~/.claude.json`; bash variable names cannot start with a digit, hence `DATABASE_URL_222` not `222_DATABASE_URL`
+- `EAZION_DATABASE_URL` is passed via `env` in `~/.claude.json`; bash variable names cannot start with a digit

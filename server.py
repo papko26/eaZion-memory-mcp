@@ -6,14 +6,24 @@ import psycopg2.extras
 from pydantic import BaseModel
 from mcp.server.fastmcp import FastMCP
 
-DB_URL = os.environ["DATABASE_URL_222"]
 HOSTNAME = socket.gethostname()
 
-mcp = FastMCP("psql-memory")
+mcp = FastMCP("eaZion-memory-mcp")
 
 
 def conn():
-    return psycopg2.connect(DB_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    """Connect to PostgreSQL. Tries EAZION_DATABASE_URL first, falls back to EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL."""
+    primary = os.environ.get("EAZION_DATABASE_URL")
+    tunnel = os.environ.get("EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL")
+    if not primary and not tunnel:
+        raise RuntimeError("Neither EAZION_DATABASE_URL nor EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL is set")
+    if primary:
+        try:
+            return psycopg2.connect(primary, cursor_factory=psycopg2.extras.RealDictCursor)
+        except psycopg2.OperationalError:
+            if not tunnel:
+                raise
+    return psycopg2.connect(tunnel, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 def _upsert(cur, name: str, type: str, description: str, body: str, tags: list[str]) -> dict:
@@ -51,7 +61,7 @@ def _tag_condition(tags: Optional[list[str]]) -> tuple[str, list]:
 
 
 @mcp.tool()
-def psql_memory_save(name: str, type: str, description: str, body: str,
+def eazion_memory_save(name: str, type: str, description: str, body: str,
                      tags: Optional[list[str]] = None) -> str:
     """
     Save or update a global memory. Stored as GLOBAL/{name}.
@@ -76,7 +86,7 @@ class Insight(BaseModel):
 
 
 @mcp.tool()
-def psql_memory_save_session_insights(dialog: str, insights: list[Insight]) -> str:
+def eazion_memory_save_session_insights(dialog: str, insights: list[Insight]) -> str:
     """
     Save insights from the current session. Stored as {hostname}/{dialog}/{name}.
     Call at the end of a session with a list of insights extracted from the conversation.
@@ -101,7 +111,7 @@ def psql_memory_save_session_insights(dialog: str, insights: list[Insight]) -> s
 
 
 @mcp.tool()
-def psql_memory_search(query: str, tags: Optional[list[str]] = None) -> str:
+def eazion_memory_search(query: str, tags: Optional[list[str]] = None) -> str:
     """
     Search memories by free text across name, description and body.
     tags: optional list — returns only memories that have ANY of these tags.
@@ -126,7 +136,7 @@ def psql_memory_search(query: str, tags: Optional[list[str]] = None) -> str:
 
 
 @mcp.tool()
-def psql_memory_load_by_tag(tags: list[str]) -> str:
+def eazion_memory_load_by_tag(tags: list[str]) -> str:
     """
     Load all memories that have ANY of the given tags (full content).
     tags: list of tags to match, e.g. ["server", "mcp"]
@@ -143,7 +153,7 @@ def psql_memory_load_by_tag(tags: list[str]) -> str:
 
 
 @mcp.tool()
-def psql_memory_get(name: str) -> str:
+def eazion_memory_get(name: str) -> str:
     """Get a single memory by exact full name (e.g. GLOBAL/server-222)."""
     with conn() as c, c.cursor() as cur:
         cur.execute(
@@ -163,7 +173,7 @@ def psql_memory_get(name: str) -> str:
 
 
 @mcp.tool()
-def psql_memory_list(type: Optional[str] = None, namespace: Optional[str] = None,
+def eazion_memory_list(type: Optional[str] = None, namespace: Optional[str] = None,
                      tags: Optional[list[str]] = None) -> str:
     """
     List all memories as an index (name + description + tags, no body).
@@ -199,7 +209,7 @@ def psql_memory_list(type: Optional[str] = None, namespace: Optional[str] = None
 
 
 @mcp.tool()
-def psql_memory_list_session_insights(dialog: Optional[str] = None,
+def eazion_memory_list_session_insights(dialog: Optional[str] = None,
                                        machine: Optional[str] = None,
                                        tags: Optional[list[str]] = None) -> str:
     """
@@ -237,7 +247,7 @@ def psql_memory_list_session_insights(dialog: Optional[str] = None,
 
 
 @mcp.tool()
-def psql_memory_load_session_insights(dialog: str, machine: Optional[str] = None,
+def eazion_memory_load_session_insights(dialog: str, machine: Optional[str] = None,
                                        tags: Optional[list[str]] = None) -> str:
     """
     Load full content of all insights for a given dialog.
@@ -269,7 +279,7 @@ def psql_memory_load_session_insights(dialog: str, machine: Optional[str] = None
 
 
 @mcp.tool()
-def psql_memory_delete(name: str) -> str:
+def eazion_memory_delete(name: str) -> str:
     """Delete a memory by exact full name (e.g. GLOBAL/server-222)."""
     with conn() as c, c.cursor() as cur:
         cur.execute("DELETE FROM memories WHERE name = %s RETURNING id", (name,))
