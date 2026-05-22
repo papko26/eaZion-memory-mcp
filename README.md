@@ -1,5 +1,6 @@
 # eaZion-memory-mcp — Claude Memory MCP Server
-<img width="400" height="170" alt="image" src="https://github.com/user-attachments/assets/57561d77-9bf6-44d9-87a5-190664bcc33b" />
+<img width="1024" height="285" alt="image" src="https://github.com/user-attachments/assets/7f4453e1-2126-4d00-b23e-cfbcd01c089c" />
+
 
 A global MCP server that stores Claude's memories in PostgreSQL.  
 <br>
