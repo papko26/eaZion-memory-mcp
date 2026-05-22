@@ -8,6 +8,61 @@ Replaces the file-based memory system (`~/.claude/projects/.../memory/`) with a 
 
 ---
 
+## What is this?
+
+Claude normally forgets everything between sessions. This MCP server gives it a persistent memory — stored in PostgreSQL — so it can remember facts, preferences, and past decisions across any session and any machine.
+
+---
+
+## Agent installation prompt
+
+Copy and paste this to Claude in a session with Bash access:
+
+```
+Install the eaZion-memory-mcp MCP server from https://github.com/papko26/eaZion-memory-mcp
+
+Follow these steps in order:
+
+1. Clone the repo into ~/.claude/mcp/eazion-memory-mcp/
+
+2. Install uv if not already present:
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+
+3. Create a Python 3.12 venv and install dependencies:
+   cd ~/.claude/mcp/eazion-memory-mcp
+   uv python install 3.12
+   uv venv .venv --python 3.12
+   uv pip install --python .venv -r requirements.txt
+
+4. Ask the user about PostgreSQL:
+   "Do you already have a PostgreSQL instance I can use?
+    - Yes → ask for the direct connection string (EAZION_DATABASE_URL)
+            and optionally an SSH tunnel connection string
+            (EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL) if the host is
+            not directly reachable.
+    - No  → ask: would you prefer to run it locally with Docker,
+            or on a remote server (e.g. DigitalOcean)?
+            Then walk the user through setup step by step using the
+            'Quick PostgreSQL setup' section of the README."
+   Once you have the connection string(s), create the claude_memory
+   database and apply the full schema from the README (including
+   pg_trgm extension, indexes, and the updated_at trigger).
+
+5. Register the MCP server:
+   claude mcp add eazion-memory-mcp -s user \
+     -e "EAZION_DATABASE_URL=<primary connection string>" \
+     -e "EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL=<tunnel connection string>" \
+     -- ~/.claude/mcp/eazion-memory-mcp/.venv/bin/python \
+        ~/.claude/mcp/eazion-memory-mcp/server.py
+   (omit EAZION_DATABASE_URL_LOOPBACK_SSH_TUNNEL if not needed)
+
+6. Run `claude mcp list` and confirm eazion-memory-mcp shows ✓ Connected.
+
+7. Tell the user: "Restart your Claude Code session for the MCP server to become available."
+```
+
+---
+
 ## Directory layout
 
 ```
