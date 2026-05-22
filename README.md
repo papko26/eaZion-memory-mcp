@@ -1,6 +1,8 @@
-# psql-memory — Claude Memory MCP Server
+# eaZion-memory-mcp — Claude Memory MCP Server
+<img width="400" height="170" alt="image" src="https://github.com/user-attachments/assets/57561d77-9bf6-44d9-87a5-190664bcc33b" />
 
 A global MCP server that stores Claude's memories in PostgreSQL.  
+<br>
 Replaces the file-based memory system (`~/.claude/projects/.../memory/`) with a SQL store supporting full-text search and tag filtering.
 
 ---
