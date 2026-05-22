@@ -95,11 +95,11 @@ thinkpad/psql/uv-python-install
 
 | Tool | Description |
 |---|---|
-| `eazion_memory_save(name, type, description, body, tags?)` | Upsert as `GLOBAL/{name}` |
+| `eazion_memory_save(name, type, description, body, tags=None)` | Upsert as `GLOBAL/{name}` |
 | `eazion_memory_get(name)` | Fetch by exact full name |
 | `eazion_memory_delete(name)` | Delete by exact full name |
-| `eazion_memory_search(query, tags?)` | ILIKE search across name + description + body; optional tag filter |
-| `eazion_memory_list(type?, namespace?, tags?)` | Index listing; filter by type, namespace prefix, and/or tags |
+| `eazion_memory_search(query, tags=None)` | ILIKE search across name + description + body; optional tag filter |
+| `eazion_memory_list(type=None, namespace=None, tags=None)` | Index listing; filter by type, namespace prefix, and/or tags |
 | `eazion_memory_load_by_tag(tags)` | Full content of all records matching any of the given tags |
 
 ### Session insights
@@ -107,8 +107,8 @@ thinkpad/psql/uv-python-install
 | Tool | Description |
 |---|---|
 | `eazion_memory_save_session_insights(dialog, insights)` | Batch-save insights as `{hostname}/{dialog}/{name}` |
-| `eazion_memory_list_session_insights(dialog?, machine?, tags?)` | Index listing of session insights; all params optional |
-| `eazion_memory_load_session_insights(dialog, machine?, tags?)` | Full content of insights for a given dialog |
+| `eazion_memory_list_session_insights(dialog=None, machine=None, tags=None)` | Index listing of session insights; all params optional |
+| `eazion_memory_load_session_insights(dialog, machine=None, tags=None)` | Full content of insights for a given dialog |
 
 ### Tag behaviour
 
